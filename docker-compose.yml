@@ -79,8 +79,8 @@ services:
         condition: service_completed_successfully
     command: >
       sh -c "
-        npx mikro-orm migration:up --config mikro-orm.config.ts &&
-        node dist/main.js
+        bunx mikro-orm migration:up --config mikro-orm.config.ts &&
+        bun dist/main.js
       "
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
