@@ -2,8 +2,8 @@ import { Wallet } from '../wallets/wallet.entity.js';
 import { WagerTransaction } from '../transactions/wager-transaction.entity.js';
 import { LedgerDirection } from '../domain/enums.js';
 import { Money } from '../domain/money.js';
-import { Entity, PrimaryKey, Property, ManyToOne, Index } from '@mikro-orm/core';
-import { v4 as uuidv4 } from 'uuid';
+import { Entity, PrimaryKey, Property, ManyToOne, Index } from '@mikro-orm/decorators/legacy';
+import { randomUUID } from 'node:crypto';
 
 export interface CreateLedgerEntryProps {
     wallet: Wallet;
@@ -29,8 +29,8 @@ export interface LedgerEntryState {
 }
 
 @Entity({ tableName: 'wallet_ledger_entries' })
-@Index({ properties: ['walletId', 'createdAt'] })
-@Index({ properties: ['transactionId'] }, { unique: true })
+@Index({ properties: ['wallet', 'createdAt'] })
+@Index({ properties: ['transaction'] })
 export class WalletLedgerEntry {
     @PrimaryKey({ type: 'uuid' })
     public readonly id: string;
@@ -93,11 +93,11 @@ export class WalletLedgerEntry {
     static create(props: CreateLedgerEntryProps) {
         const { wallet, transaction, direction, money, balanceBefore, balanceAfter } = props;
     
-        if (money.isNegative()) {
+        if (money.isNegative() || money.isZero()) {
             throw new Error('O valor do lançamento contábil deve ser positivo.');
         }
 
-        if (!balanceBefore.currency === !money.currency || !balanceAfter.currency === !money.currency) {
+        if (balanceBefore.currency !== money.currency || balanceAfter.currency !== money.currency) {
             throw new Error('Irregularidade cambial no lançamento contábil.');
         }
 
@@ -116,7 +116,7 @@ export class WalletLedgerEntry {
         }
 
         return new WalletLedgerEntry({
-            id: uuidv4(),
+            id: randomUUID(),
             wallet,
             transaction,
             direction,

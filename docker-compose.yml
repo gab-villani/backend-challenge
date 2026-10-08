@@ -52,7 +52,18 @@ services:
         --queue-name wager-transactions-dlq.fifo --query QueueUrl --output text);
         aws --endpoint-url=http://localstack:4566 sqs create-queue
         --queue-name wager-transactions.fifo
-        --attributes FifoQueue=true,ContentBasedDeduplication=true,RedrivePolicy='{ "deadLetterTargetArn": "arn:aws:sqs:us-east-1:000000000000:wager-transactions-dlq.fifo", "maxReceiveCount": "5" }'
+        --attributes FifoQueue=true,ContentBasedDeduplication=true,RedrivePolicy='{ "deadLetterTargetArn": "arn:aws:sqs:us-east-1:000000000000:wager-transactions-dlq.fifo", "maxReceiveCount": "5" }';
+        aws --endpoint-url=http://localstack:4566 sqs create-queue
+        --queue-name wagering-events.fifo
+        --attributes FifoQueue=true,ContentBasedDeduplication=true;
+        OUTBOX_DLQ_URL=$$(aws --endpoint-url=http://localstack:4566 sqs get-queue-url
+        --queue-name wagering-events-dlq.fifo --query QueueUrl --output text);
+        aws --endpoint-url=http://localstack:4566 sqs create-queue
+        --queue-name wagering-events-dlq.fifo
+        --attributes FifoQueue=true,ContentBasedDeduplication=true;
+        aws --endpoint-url=http://localstack:4566 sqs create-queue
+        --queue-name wagering-events.fifo
+        --attributes FifoQueue=true,ContentBasedDeduplication=true,RedrivePolicy='{ "deadLetterTargetArn": "arn:aws:sqs:us-east-1:000000000000:wagering-events-dlq.fifo", "maxReceiveCount": "5" }'
     networks:
       - backend-network
 

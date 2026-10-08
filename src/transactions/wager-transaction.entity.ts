@@ -46,12 +46,18 @@ export class WagerTransaction {
   @Property({ type: 'string', length: 255 })
   protected readonly _roundId: string;
 
+  @Property({ type: 'string', length: 255, fieldName: 'game_id' })
+  protected readonly _gameId: string;
+
   @Property({
     type: 'string',
     fieldName: 'reference_transaction_id',
     nullable: true,
   })
   protected _referenceTransactionId: string | null;
+
+  @Property({ type: 'string', length: 255, fieldName: 'reference_external_transaction_id', nullable: true })
+  protected readonly _referenceExternalTransactionId: string | null;
 
   @Property({ type: 'string', length: 20 })
   protected _status: WagerTransactionStatus;
@@ -82,7 +88,9 @@ export class WagerTransaction {
     currency: string,
     playerId: string,
     roundId: string,
+    gameId: string,
     referenceTransactionId: string | null,
+    referenceExternalTransactionId: string | null,
     status: WagerTransactionStatus,
     payloadHash: string | null,
     createdAt: Date,
@@ -97,7 +105,9 @@ export class WagerTransaction {
     this._currency = currency;
     this._playerId = playerId;
     this._roundId = roundId;
+    this._gameId = gameId;
     this._referenceTransactionId = referenceTransactionId;
+    this._referenceExternalTransactionId = referenceExternalTransactionId;
     this._status = status;
     this._payloadHash = payloadHash;
     this._failureCode = null;
@@ -115,7 +125,9 @@ export class WagerTransaction {
     amount: Money,
     playerId: string,
     roundId: string,
+    gameId: string,
     referenceTransactionId: string | null,
+    referenceExternalTransactionId: string | null,
     payloadHash: string,
   ): WagerTransaction {
     WagerTransaction.validateCreate(
@@ -139,7 +151,9 @@ export class WagerTransaction {
       amount.currency,
       playerId,
       roundId,
+      gameId,
       referenceTransactionId,
+      referenceExternalTransactionId,
       initialStatus,
       payloadHash,
       new Date(),
@@ -157,7 +171,9 @@ export class WagerTransaction {
     currency: string,
     playerId: string,
     roundId: string,
+    gameId: string,
     referenceTransactionId: string | null,
+    referenceExternalTransactionId: string | null,
     status: WagerTransactionStatus,
     payloadHash: string | null,
     failureCode: FailureCode | null,
@@ -176,7 +192,9 @@ export class WagerTransaction {
       currency,
       playerId,
       roundId,
+      gameId,
       referenceTransactionId,
+      referenceExternalTransactionId,
       status,
       payloadHash,
       createdAt,
@@ -321,8 +339,16 @@ export class WagerTransaction {
     return this._roundId;
   }
 
+  get gameId(): string {
+    return this._gameId;
+  }
+
   get referenceTransactionId(): string | null {
     return this._referenceTransactionId;
+  }
+
+  get referenceExternalTransactionId(): string | null {
+    return this._referenceExternalTransactionId;
   }
 
   get status(): WagerTransactionStatus {
@@ -331,6 +357,10 @@ export class WagerTransaction {
 
   get payloadHash(): string | null {
     return this._payloadHash;
+  }
+
+  matchesPayload(payloadHash: string): boolean {
+    return this._payloadHash === payloadHash;
   }
 
   get failureCode(): FailureCode | null {

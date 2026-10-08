@@ -11,6 +11,7 @@ import {
 import { WalletsService } from './wallets.service.js';
 import { CreateWalletDto, WalletResponseDto } from './dto/wallet.dto.js';
 import { Wallet } from './wallet.entity.js';
+import { Money } from '../domain/money.js';
 
 @Controller('wallets')
 export class WalletsController {
@@ -22,7 +23,10 @@ export class WalletsController {
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
     dto: CreateWalletDto,
   ): Promise<WalletResponseDto> {
-    const wallet = await this.walletsService.create(dto.playerId, dto.currency);
+    const initialBalance = dto.initialBalance
+      ? Money.fromString(dto.initialBalance.amount, dto.initialBalance.currency)
+      : undefined;
+    const wallet = await this.walletsService.create(dto.playerId, dto.currency, initialBalance);
     return this.toResponse(wallet);
   }
 

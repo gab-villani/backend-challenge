@@ -17,6 +17,7 @@ describe('WagerTransaction', () => {
     amount: Money.fromString('100.00', 'USD'),
     playerId: 'player-999',
     roundId: 'round-555',
+    gameId: 'game-123',
     payloadHash: 'hash123',
   };
 
@@ -31,6 +32,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -52,7 +55,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -71,6 +76,8 @@ describe('WagerTransaction', () => {
           validParams.amount,
           validParams.playerId,
           validParams.roundId,
+          validParams.gameId,
+          null,
           null,
           validParams.payloadHash,
         ),
@@ -90,6 +97,8 @@ describe('WagerTransaction', () => {
           negativeAmount,
           validParams.playerId,
           validParams.roundId,
+          validParams.gameId,
+          null,
           null,
           validParams.payloadHash,
         ),
@@ -107,6 +116,8 @@ describe('WagerTransaction', () => {
           validParams.amount,
           validParams.playerId,
           validParams.roundId,
+          validParams.gameId,
+          null,
           null,
           validParams.payloadHash,
         ),
@@ -124,6 +135,8 @@ describe('WagerTransaction', () => {
           validParams.amount,
           validParams.playerId,
           validParams.roundId,
+          validParams.gameId,
+          null,
           null,
           validParams.payloadHash,
         ),
@@ -141,7 +154,9 @@ describe('WagerTransaction', () => {
           validParams.amount,
           validParams.playerId,
           validParams.roundId,
+          validParams.gameId,
           'ref-tx-123',
+          'ref-ext-tx-123',
           validParams.payloadHash,
         ),
       ).toThrow('BET cannot have a reference transaction');
@@ -158,7 +173,9 @@ describe('WagerTransaction', () => {
           validParams.amount,
           validParams.playerId,
           validParams.roundId,
+          validParams.gameId,
           'ref-tx-123',
+          'ref-ext-tx-123',
           validParams.payloadHash,
         ),
       ).toThrow('WIN cannot have a reference transaction');
@@ -176,6 +193,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -196,7 +215,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -215,6 +236,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -236,6 +259,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -259,6 +284,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -281,6 +308,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -304,6 +333,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -328,6 +359,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -345,6 +378,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -362,6 +397,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -379,7 +416,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -396,7 +435,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -415,7 +456,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -432,7 +475,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -449,6 +494,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -468,6 +515,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -485,6 +534,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -502,7 +553,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -519,7 +572,9 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
         'ref-tx-123',
+        'ref-ext-tx-123',
         validParams.payloadHash,
       );
 
@@ -536,6 +591,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -555,6 +612,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -573,6 +632,8 @@ describe('WagerTransaction', () => {
         validParams.amount,
         validParams.playerId,
         validParams.roundId,
+        validParams.gameId,
+        null,
         null,
         validParams.payloadHash,
       );
@@ -597,6 +658,8 @@ describe('WagerTransaction', () => {
         'USD',
         'player-999',
         'round-555',
+        'game-123',
+        null,
         null,
         WagerTransactionStatus.PROCESSED,
         'hash123',

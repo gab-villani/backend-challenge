@@ -1,47 +1,47 @@
 import { describe, it, expect } from 'vitest';
-import { WalletLedgerEntry, CreateLedgerEntryProps } from './wallet-ledger-entry.entity';
-import { Wallet } from '../wallets/wallet.entity';
-import { WagerTransaction } from '../transactions/wager-transaction.entity';
-import { Money } from '../domain/money';
-import { LedgerDirection, WagerTransactionKind, WagerTransactionStatus } from '../domain/enums';
+import { WalletLedgerEntry, CreateLedgerEntryProps } from './wallet-ledger-entry.entity.js';
+import { Wallet } from '../wallets/wallet.entity.js';
+import { WagerTransaction } from '../transactions/wager-transaction.entity.js';
+import { Money } from '../domain/money.js';
+import { LedgerDirection, WagerTransactionKind, WagerTransactionStatus } from '../domain/enums.js';
 
 const makeWallet = (currency = 'BRL') => 
-  Wallet.rehydrate({
-    id: 'w-1',
-    playerId: 'p-1',
+  Wallet.rehydrate(
+    'w-1',
+    'p-1',
     currency,
-    balance: '100.00',
-    version: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
+    '100.00',
+    1,
+    new Date(),
+    new Date(),
+  );
 
 const makeTransaction = (id = 'tx-1') =>
-  WagerTransaction.rehydrate({
+  WagerTransaction.rehydrate(
     id,
-    providerId: 'prov-a',
-    externalTransactionId: 'ext-1',
-    idempotencyKey: 'prov-a:ext-1',
-    payloadHash: 'hash-1',
-    walletId: 'w-1',
-    playerId: 'p-1',
-    roundId: 'r-1',
-    gameId: 'game-1',
-    kind: WagerTransactionKind.Bet,
-    moneyAmount: '25.00',
-    moneyCurrency: 'BRL',
-    referenceExternalTransactionId: undefined,
-    status: WagerTransactionStatus.Processed,
-    referenceTransactionId: undefined,
-    failureCode: undefined,
-    processedAt: undefined,
-    createdAt: new Date(),
-  });
+    'w-1',
+    'prov-a',
+    'ext-1',
+    'prov-a:ext-1',
+    WagerTransactionKind.BET,
+    '25.00',
+    'BRL',
+    'p-1',
+    'r-1',
+    'game-1',
+    undefined,
+    WagerTransactionStatus.PROCESSED,
+    'hash-1',
+    undefined,
+    undefined,
+    new Date(),
+    undefined,
+  );
 
 const makeProps = (overrides: Partial<CreateLedgerEntryProps> = {}): CreateLedgerEntryProps => ({
   wallet: makeWallet(),
   transaction: makeTransaction(),
-  direction: LedgerDirection.Debit,
+  direction: LedgerDirection.DEBIT,
   money: Money.fromString('25.00', 'BRL'),
   balanceBefore: Money.fromString('100.00', 'BRL'),
   balanceAfter: Money.fromString('75.00', 'BRL'),
@@ -53,7 +53,7 @@ describe('WalletLedgerEntry', () => {
     it('should create valid DEBIT entry', () => {
       const entry = WalletLedgerEntry.create(makeProps());
       expect(entry.id).toBeDefined();
-      expect(entry.direction).toBe(LedgerDirection.Debit);
+      expect(entry.direction).toBe(LedgerDirection.DEBIT);
       expect(entry.money.equals(Money.fromString('25.00', 'BRL'))).toBe(true);
       expect(entry.balanceBefore.equals(Money.fromString('100.00', 'BRL'))).toBe(true);
       expect(entry.balanceAfter.equals(Money.fromString('75.00', 'BRL'))).toBe(true);
@@ -63,11 +63,11 @@ describe('WalletLedgerEntry', () => {
     it('should create valid CREDIT entry', () => {
       const entry = WalletLedgerEntry.create({
         ...makeProps(),
-        direction: LedgerDirection.Credit,
+        direction: LedgerDirection.CREDIT,
         balanceBefore: Money.fromString('75.00', 'BRL'),
         balanceAfter: Money.fromString('100.00', 'BRL'),
       });
-      expect(entry.direction).toBe(LedgerDirection.Credit);
+      expect(entry.direction).toBe(LedgerDirection.CREDIT);
       expect(entry.isBalanced()).toBe(true);
     });
 
@@ -75,13 +75,13 @@ describe('WalletLedgerEntry', () => {
       expect(() => WalletLedgerEntry.create({
         ...makeProps(),
         money: Money.zero('BRL'),
-      })).toThrow('Ledger entry money must be positive');
+      })).toThrow('O valor do lançamento contábil deve ser positivo.');
     });
 
     it('should reject negative money', () => {
       expect(() => WalletLedgerEntry.create({
         ...makeProps(),
-        money: Money.fromString('25.00', 'BRL').negate(), // se existisse
+        money: Money.fromString('-25.00', 'BRL'),
       })).toThrow();
     });
 
@@ -90,30 +90,30 @@ describe('WalletLedgerEntry', () => {
         ...makeProps(),
         wallet: makeWallet('USD'),
         money: Money.fromString('25.00', 'BRL'),
-      })).toThrow('Wallet currency mismatch');
+      })).toThrow('Incompatibilidade de moeda na carteira.');
     });
 
     it('should reject currency mismatch balanceBefore vs money', () => {
       expect(() => WalletLedgerEntry.create({
         ...makeProps(),
         balanceBefore: Money.fromString('100.00', 'USD'),
-      })).toThrow('Currency mismatch in ledger entry');
+      })).toThrow('Irregularidade cambial no lançamento contábil.');
     });
 
     it('should reject invalid DEBIT arithmetic', () => {
       expect(() => WalletLedgerEntry.create({
         ...makeProps(),
-        balanceAfter: Money.fromString('80.00', 'BRL'), // 100 - 25 = 75, não 80
-      })).toThrow('Ledger arithmetic invalid');
+        balanceAfter: Money.fromString('80.00', 'BRL'),
+      })).toThrow('Cálculo contábil inválido');
     });
 
     it('should reject invalid CREDIT arithmetic', () => {
       expect(() => WalletLedgerEntry.create({
         ...makeProps(),
-        direction: LedgerDirection.Credit,
+        direction: LedgerDirection.CREDIT,
         balanceBefore: Money.fromString('75.00', 'BRL'),
-        balanceAfter: Money.fromString('90.00', 'BRL'), // 75 + 25 = 100, não 90
-      })).toThrow('Ledger arithmetic invalid');
+        balanceAfter: Money.fromString('90.00', 'BRL'),
+      })).toThrow('Cálculo contábil inválido');
     });
   });
 
