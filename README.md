@@ -166,6 +166,7 @@ Formato nos contratos:
 ### 6.2 Wallet (Aggregate Root)
 
 ```ts
+
 class Wallet {
   private constructor(
     public readonly id: string,
