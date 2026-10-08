@@ -1,0 +1,101 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: wagering
+      POSTGRES_USER: wagering
+      POSTGRES_PASSWORD: wagering
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wagering -d wagering"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend-network
+
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs list-queues"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend-network
+
+  sqs-init:
+    image: amazon/aws-cli:2.22.35
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - >-
+        aws --endpoint-url=http://localstack:4566 sqs create-queue
+        --queue-name wager-transactions-dlq.fifo
+        --attributes FifoQueue=true,ContentBasedDeduplication=true;
+        DLQ_URL=$$(aws --endpoint-url=http://localstack:4566 sqs get-queue-url
+        --queue-name wager-transactions-dlq.fifo --query QueueUrl --output text);
+        aws --endpoint-url=http://localstack:4566 sqs create-queue
+        --queue-name wager-transactions.fifo
+        --attributes FifoQueue=true,ContentBasedDeduplication=true,RedrivePolicy='{ "deadLetterTargetArn": "arn:aws:sqs:us-east-1:000000000000:wager-transactions-dlq.fifo", "maxReceiveCount": "5" }'
+    networks:
+      - backend-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: wagering
+      DATABASE_USER: wagering
+      DATABASE_PASSWORD: wagering
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      sqs-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "
+        npx mikro-orm migration:up --config mikro-orm.config.ts &&
+        node dist/main.js
+      "
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - backend-network
+
+volumes:
+  postgres-data:
+
+networks:
+  backend-network:
+    driver: bridge
+
