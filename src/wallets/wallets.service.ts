@@ -41,6 +41,7 @@ export class WalletsService {
           null,
           null,
           randomUUID(),
+          { isSystemTransaction: true },
         );
         openingTx.markProcessed();
         em.persist(openingTx);

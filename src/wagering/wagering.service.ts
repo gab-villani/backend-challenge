@@ -161,7 +161,7 @@ export class WageringService {
         if (!referenceTransaction) {
           initialStatus = WagerTransactionStatus.PENDING_REFERENCE;
       } else {
-        this.validateReference(referenceTransaction, input);
+        await this.validateReference(referenceTransaction, input);
       }
       }
 
@@ -194,7 +194,7 @@ export class WageringService {
       }
 
       const correlationId = randomUUID();
-      await this.publishEvents(em, wallet, transaction, newBalance, correlationId);
+      await this.publishEvents(em, wallet, transaction, newBalance, correlationId, referenceTransaction ?? undefined);
 
       const duration = (Date.now() - startTime) / 1000;
       this.metrics.observeProcessingDuration(input.kind, duration);
@@ -257,7 +257,7 @@ return {
       }
 
       if (transaction.affectsBalance()) {
-        const direction = transaction.ledgerDirectionFor()!;
+        const direction = transaction.ledgerDirectionFor(referenceTransaction)!;
         const ledgerEntry = WalletLedgerEntry.create({
           wallet,
           transaction,
@@ -274,14 +274,27 @@ return {
       return { newBalance };
     } catch (error) {
       if (error instanceof Error && error.message === 'Insufficient balance') {
-        transaction.reject(FailureCode.INSUFFICIENT_BALANCE, 'Insufficient balance for transaction');
-        throw error;
+        const isReversalDebit = 
+          transaction.kind === WagerTransactionKind.ROLLBACK &&
+          referenceTransaction &&
+          referenceTransaction.ledgerDirectionFor() === LedgerDirection.CREDIT;
+        
+        const failureCode = isReversalDebit
+          ? FailureCode.REVERSAL_INSUFFICIENT_BALANCE
+          : FailureCode.INSUFFICIENT_BALANCE;
+        
+        const errorMessage = isReversalDebit
+          ? 'Insufficient balance for reversal'
+          : 'Insufficient balance for transaction';
+        
+        transaction.reject(failureCode, errorMessage);
+        throw new Error(errorMessage);
       }
       throw error;
     }
   }
 
-  private validateReference(refTx: WagerTransaction, input: ProcessTransactionInput): void {
+  private async validateReference(refTx: WagerTransaction, input: ProcessTransactionInput): Promise<void> {
     if (refTx.providerId !== input.providerId) {
       throw new Error('REFERENCE_INCORRECT_PROVIDER');
     }
@@ -304,6 +317,16 @@ return {
         refTx.status === WagerTransactionStatus.FAILED) {
       throw new Error('REFERENCE_ALREADY_REVERSED');
     }
+
+    const existingReversal = await this.transactionRepository.findOne({
+      referenceTransactionId: refTx.id,
+      kind: input.kind,
+      status: WagerTransactionStatus.PROCESSED,
+    });
+    if (existingReversal) {
+      throw new Error('REFERENCE_ALREADY_REVERSED');
+    }
+
     if (input.kind === WagerTransactionKind.REFUND && refTx.kind !== WagerTransactionKind.BET) {
       throw new Error('REFERENCE_INCORRECT_KIND');
     }
@@ -328,6 +351,7 @@ return {
     transaction: WagerTransaction,
     balanceAfter: Money,
     correlationId: string,
+    referenceTransaction?: WagerTransaction,
   ): Promise<void> {
     const causationId = transaction.id;
     const processedAt = transaction.processedAt!;
@@ -356,7 +380,7 @@ return {
         const balanceEvent = WalletBalanceChanged.from(
           wallet.id,
           transaction.id,
-          transaction.ledgerDirectionFor()!,
+          transaction.ledgerDirectionFor(referenceTransaction)!,
           transaction.getAmount(),
           wallet.getBalance().subtract(transaction.getAmount()),
           balanceAfter,
@@ -427,7 +451,7 @@ return {
           }
 
         try {
-          this.validateReference(referenceTx, {
+          await this.validateReference(referenceTx, {
             providerId: tx.providerId,
             externalTransactionId: tx.externalTransactionId,
             idempotencyKey: tx.idempotencyKey,
@@ -459,7 +483,7 @@ return {
 
           const result = await this.applyTransaction(txEm, wallet, tx, referenceTx);
           const correlationId = randomUUID();
-          await this.publishEvents(txEm, wallet, tx, result.newBalance, correlationId);
+          await this.publishEvents(txEm, wallet, tx, result.newBalance, correlationId, referenceTx);
           processed++;
         });
       } catch (error) {

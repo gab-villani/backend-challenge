@@ -1,14 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { MikroORM, EntityManager, LockMode } from '@mikro-orm/core';
 import { AppModule } from '../src/app.module.js';
-import { Wallet } from '../src/wallets/wallet.entity.js';
-import { WagerTransaction } from '../src/transactions/wager-transaction.entity.js';
-import { WalletLedgerEntry } from '../src/ledger/wallet-ledger-entry.entity.js';
-import { InboxMessage } from '../src/messaging/inbox-message.entity.js';
-import { OutboxMessage } from '../src/messaging/outbox-message.entity.js';
 import { Money } from '../src/domain/money.js';
 import { WagerTransactionKind, WagerTransactionStatus, LedgerDirection } from '../src/domain/enums.js';
 import { WageringService } from '../src/wagering/wagering.service.js';
@@ -20,6 +15,8 @@ describe('Concurrency Tests (e2e)', () => {
   let em: EntityManager;
 
   beforeAll(async () => {
+    process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS = '100';
+
     moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -30,22 +27,23 @@ describe('Concurrency Tests (e2e)', () => {
     orm = moduleFixture.get(MikroORM);
     em = orm.em.fork();
 
-    await orm.getSchemaGenerator().ensureDatabase();
-    await orm.getSchemaGenerator().dropSchema();
-    await orm.getSchemaGenerator().createSchema();
+    const generator = orm.schema;
+    await generator.ensureDatabase();
+    await generator.drop();
+    await generator.create();
   });
 
   afterAll(async () => {
-    await app.close();
+    // Don't await app.close() as it hangs in test environment
     await orm.close();
   });
 
   beforeEach(async () => {
-    await em.nativeDelete(OutboxMessage, {});
-    await em.nativeDelete(InboxMessage, {});
-    await em.nativeDelete(WalletLedgerEntry, {});
-    await em.nativeDelete(WagerTransaction, {});
-    await em.nativeDelete(Wallet, {});
+    await em.nativeDelete('OutboxMessage', {});
+    await em.nativeDelete('InboxMessage', {});
+    await em.nativeDelete('WalletLedgerEntry', {});
+    await em.nativeDelete('WagerTransaction', {});
+    await em.nativeDelete('Wallet', {});
   });
 
   describe('50 Parallel Identical Bets', () => {

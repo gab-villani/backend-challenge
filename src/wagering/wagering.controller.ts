@@ -122,6 +122,12 @@ export class WageringController {
             message: 'Insufficient balance',
           });
         }
+        if (error.message === 'Insufficient balance for reversal') {
+          throw new UnprocessableEntityException({
+            code: 'REVERSAL_INSUFFICIENT_BALANCE',
+            message: 'Insufficient balance for reversal operation',
+          });
+        }
         if (error.message === 'INVALID_REFERENCE' || error.message === 'REFERENCE_REQUIRED') {
           throw new UnprocessableEntityException({
             code: 'INVALID_REFERENCE',

@@ -140,11 +140,13 @@ export class WagerTransaction {
     referenceTransactionId: string | null,
     referenceExternalTransactionId: string | null,
     payloadHash: string,
+    options?: { isSystemTransaction?: boolean },
   ): WagerTransaction {
     WagerTransaction.validateCreate(
       kind,
       amount,
       referenceTransactionId,
+      options,
     );
 
     const initialStatus = referenceTransactionId
@@ -288,7 +290,7 @@ export class WagerTransaction {
     );
   }
 
-  ledgerDirectionFor(): LedgerDirection | null {
+  ledgerDirectionFor(referenceTransaction?: WagerTransaction | null): LedgerDirection | null {
     if (!this.affectsBalance()) {
       return null;
     }
@@ -301,7 +303,13 @@ export class WagerTransaction {
       case WagerTransactionKind.OPENING:
         return LedgerDirection.CREDIT;
       case WagerTransactionKind.ROLLBACK:
-        return LedgerDirection.DEBIT;
+        if (!referenceTransaction) {
+          return LedgerDirection.DEBIT;
+        }
+        const refDirection = referenceTransaction.ledgerDirectionFor();
+        return refDirection === LedgerDirection.DEBIT
+          ? LedgerDirection.CREDIT
+          : LedgerDirection.DEBIT;
       default:
         return null;
     }
@@ -338,8 +346,9 @@ export class WagerTransaction {
     kind: WagerTransactionKind,
     amount: Money,
     referenceTransactionId: string | null,
+    options?: { isSystemTransaction?: boolean },
   ): void {
-    if (kind === WagerTransactionKind.OPENING) {
+    if (kind === WagerTransactionKind.OPENING && !options?.isSystemTransaction) {
       throw new Error('OPENING transactions cannot be created via API/SQS');
     }
 
