@@ -19,8 +19,12 @@ RUN bun install --frozen-lockfile --production
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/migrations ./migrations
-COPY --from=builder /app/mikro-orm.config.ts ./
+COPY --from=builder /app/mikro-orm.config.prod.ts ./
+COPY --from=builder /app/scripts ./scripts
+COPY docker-entrypoint.sh ./
+
+RUN chmod +x docker-entrypoint.sh
 
 EXPOSE 3000
 
-CMD ["bun", "dist/main.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]

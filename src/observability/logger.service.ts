@@ -1,5 +1,5 @@
 import { Injectable, LoggerService, Scope } from '@nestjs/common';
-import pino, { Logger, Level } from 'pino';
+import pino, { Logger } from 'pino';
 import { randomUUID } from 'node:crypto';
 
 @Injectable({ scope: Scope.TRANSIENT })

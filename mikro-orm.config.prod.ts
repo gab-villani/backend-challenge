@@ -1,10 +1,10 @@
 import { defineConfig } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
-import { Wallet } from './src/wallets/wallet.entity.js';
-import { WagerTransaction } from './src/transactions/wager-transaction.entity.js';
-import { WalletLedgerEntry } from './src/ledger/wallet-ledger-entry.entity.js';
-import { InboxMessage } from './src/messaging/inbox-message.entity.js';
-import { OutboxMessage } from './src/messaging/outbox-message.entity.js';
+import { Wallet } from './dist/wallets/wallet.entity.js';
+import { WagerTransaction } from './dist/transactions/wager-transaction.entity.js';
+import { WalletLedgerEntry } from './dist/ledger/wallet-ledger-entry.entity.js';
+import { InboxMessage } from './dist/messaging/inbox-message.entity.js';
+import { OutboxMessage } from './dist/messaging/outbox-message.entity.js';
 
 const port = Number.parseInt(process.env.DATABASE_PORT ?? '5432', 10);
 

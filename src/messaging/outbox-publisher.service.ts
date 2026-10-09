@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { EntityManager, LockMode } from '@mikro-orm/core';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { OutboxMessage } from './outbox-message.entity.js';
-import { IntegrationEvent } from '../domain/integration-event.js';
+
 import { StructuredLoggerService } from '../observability/logger.service.js';
 import { MetricsService } from '../observability/metrics.service.js';
 
@@ -71,11 +71,12 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
           }
         }, 100);
         
+        const shutdownTimeoutMs = Number.parseInt(process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS ?? '15000', 10);
         setTimeout(() => {
           clearInterval(checkInterval);
           this.logger.warn('Shutdown timeout for outbox publisher');
           this.shutdownResolve?.();
-        }, 15000);
+        }, shutdownTimeoutMs);
       });
     }
 
@@ -125,6 +126,15 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
         },
       );
 
+      // Calculate and set outbox lag (age of oldest pending message)
+      if (pendingMessages.length > 0) {
+        const oldestMessage = pendingMessages[0];
+        const lagSeconds = (now.getTime() - oldestMessage.occurredAt.getTime()) / 1000;
+        this.metrics.setOutboxLag(lagSeconds);
+      } else {
+        this.metrics.setOutboxLag(0);
+      }
+
       for (const message of pendingMessages) {
         this.inFlightPublishing++;
         try {
@@ -136,6 +146,7 @@ export class OutboxPublisherService implements OnModuleInit, OnModuleDestroy {
               messageId: message.id,
               eventType: message.eventType,
               attempts: message.attempts,
+              error: error instanceof Error ? error.message : String(error),
             });
             this.metrics.incrementDlqMessages();
             message.markPublished(new Date());

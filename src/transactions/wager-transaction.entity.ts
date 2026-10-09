@@ -17,65 +17,73 @@ import {
 @Unique({ properties: ['idempotencyKey'] })
 export class WagerTransaction {
   @PrimaryKey({ type: 'uuid' })
-  protected readonly _id: string;
+  id: string;
 
   @Property({ type: 'string', fieldName: 'wallet_id' })
-  protected readonly _walletId: string;
+  walletId: string;
 
   @Property({ type: 'string', fieldName: 'provider_id' })
-  protected readonly _providerId: string;
+  providerId: string;
 
   @Property({ type: 'string', fieldName: 'external_transaction_id' })
-  protected readonly _externalTransactionId: string;
+  externalTransactionId: string;
 
   @Property({ type: 'string', fieldName: 'idempotency_key' })
-  protected readonly _idempotencyKey: string;
+  idempotencyKey: string;
 
-  @Property({ type: 'string', length: 10 })
-  protected readonly _kind: WagerTransactionKind;
+  @Property({ type: 'string', length: 10, fieldName: 'kind' })
+  kind: WagerTransactionKind;
 
-  @Property({ type: 'string', columnType: 'numeric(18, 2)' })
-  protected readonly _amount: string;
+  @Property({ type: 'string', columnType: 'numeric(18, 2)', fieldName: 'amount' })
+  amount: string;
 
-  @Property({ type: 'string', length: 3 })
-  protected readonly _currency: string;
+  @Property({ type: 'string', length: 3, fieldName: 'currency' })
+  currency: string;
 
-  @Property({ type: 'string', length: 255 })
-  protected readonly _playerId: string;
+  @Property({ type: 'string', length: 255, fieldName: 'player_id' })
+  playerId: string;
 
-  @Property({ type: 'string', length: 255 })
-  protected readonly _roundId: string;
+  @Property({ type: 'string', length: 255, fieldName: 'round_id' })
+  roundId: string;
 
   @Property({ type: 'string', length: 255, fieldName: 'game_id' })
-  protected readonly _gameId: string;
+  gameId: string;
 
   @Property({
     type: 'string',
     fieldName: 'reference_transaction_id',
     nullable: true,
   })
-  protected _referenceTransactionId: string | null;
+  referenceTransactionId: string | null;
 
-  @Property({ type: 'string', length: 255, fieldName: 'reference_external_transaction_id', nullable: true })
-  protected readonly _referenceExternalTransactionId: string | null;
+  @Property({
+    type: 'string',
+    length: 255,
+    fieldName: 'reference_external_transaction_id',
+    nullable: true,
+  })
+  referenceExternalTransactionId: string | null;
 
-  @Property({ type: 'string', length: 20 })
-  protected _status: WagerTransactionStatus;
+  @Property({ type: 'string', length: 20, fieldName: 'status' })
+  status: WagerTransactionStatus;
 
-  @Property({ type: 'string', length: 64, nullable: true })
-  protected _payloadHash: string | null;
+  @Property({ type: 'string', length: 64, nullable: true, fieldName: 'payload_hash' })
+  payloadHash: string | null;
 
-  @Property({ type: 'string', length: 50, nullable: true })
-  protected _failureCode: FailureCode | null;
+  @Property({ type: 'string', length: 50, nullable: true, fieldName: 'failure_code' })
+  failureCode: FailureCode | null;
 
-  @Property({ type: 'string', columnType: 'text', nullable: true })
-  protected _failureReason: string | null;
+  @Property({ type: 'string', columnType: 'text', nullable: true, fieldName: 'failure_reason' })
+  failureReason: string | null;
 
   @Property({ type: 'Date', fieldName: 'created_at' })
-  protected readonly _createdAt: Date;
+  createdAt: Date;
 
   @Property({ type: 'Date', fieldName: 'processed_at', nullable: true })
-  protected _processedAt: Date | null;
+  processedAt: Date | null;
+
+  @Property({ type: 'Date', fieldName: 'expires_at', nullable: true })
+  expiresAt: Date | null;
 
   private constructor(
     id: string,
@@ -94,28 +102,31 @@ export class WagerTransaction {
     status: WagerTransactionStatus,
     payloadHash: string | null,
     createdAt: Date,
+    expiresAt: Date | null,
   ) {
-    this._id = id;
-    this._walletId = walletId;
-    this._providerId = providerId;
-    this._externalTransactionId = externalTransactionId;
-    this._idempotencyKey = idempotencyKey;
-    this._kind = kind;
-    this._amount = amount;
-    this._currency = currency;
-    this._playerId = playerId;
-    this._roundId = roundId;
-    this._gameId = gameId;
-    this._referenceTransactionId = referenceTransactionId;
-    this._referenceExternalTransactionId = referenceExternalTransactionId;
-    this._status = status;
-    this._payloadHash = payloadHash;
-    this._failureCode = null;
-    this._failureReason = null;
-    this._createdAt = createdAt;
-    this._processedAt = null;
+    this.id = id;
+    this.walletId = walletId;
+    this.providerId = providerId;
+    this.externalTransactionId = externalTransactionId;
+    this.idempotencyKey = idempotencyKey;
+    this.kind = kind;
+    this.amount = amount;
+    this.currency = currency;
+    this.playerId = playerId;
+    this.roundId = roundId;
+    this.gameId = gameId;
+    this.referenceTransactionId = referenceTransactionId;
+    this.referenceExternalTransactionId = referenceExternalTransactionId;
+    this.status = status;
+    this.payloadHash = payloadHash;
+    this.failureCode = null;
+    this.failureReason = null;
+    this.createdAt = createdAt;
+    this.processedAt = null;
+    this.expiresAt = expiresAt;
   }
 
+  /** Nasce em PENDING. Valida a exigência de referência por kind. */
   static create(
     walletId: string,
     providerId: string,
@@ -140,6 +151,12 @@ export class WagerTransaction {
       ? WagerTransactionStatus.PENDING_REFERENCE
       : WagerTransactionStatus.PENDING;
 
+    const now = new Date();
+    const ttlHours = Number.parseInt(process.env.PENDING_REFERENCE_TTL_HOURS ?? '24', 10);
+    const expiresAt = referenceTransactionId
+      ? new Date(now.getTime() + ttlHours * 60 * 60 * 1000)
+      : null;
+
     return new WagerTransaction(
       randomUUID(),
       walletId,
@@ -156,7 +173,8 @@ export class WagerTransaction {
       referenceExternalTransactionId,
       initialStatus,
       payloadHash,
-      new Date(),
+      now,
+      expiresAt,
     );
   }
 
@@ -180,88 +198,93 @@ export class WagerTransaction {
     failureReason: string | null,
     createdAt: Date,
     processedAt: Date | null,
+    expiresAt: Date | null,
   ): WagerTransaction {
-    const tx = new WagerTransaction(
-      id,
-      walletId,
-      providerId,
-      externalTransactionId,
-      idempotencyKey,
-      kind,
-      amount,
-      currency,
-      playerId,
-      roundId,
-      gameId,
-      referenceTransactionId,
-      referenceExternalTransactionId,
-      status,
-      payloadHash,
-      createdAt,
-    );
-    tx._failureCode = failureCode;
-    tx._failureReason = failureReason;
-    tx._processedAt = processedAt;
+    const tx = Object.create(WagerTransaction.prototype);
+
+    tx.id = id;
+    tx.walletId = walletId;
+    tx.providerId = providerId;
+    tx.externalTransactionId = externalTransactionId;
+    tx.idempotencyKey = idempotencyKey;
+    tx.kind = kind;
+    tx.amount = amount;
+    tx.currency = currency;
+    tx.playerId = playerId;
+    tx.roundId = roundId;
+    tx.gameId = gameId;
+    tx.referenceTransactionId = referenceTransactionId;
+    tx.referenceExternalTransactionId = referenceExternalTransactionId;
+    tx.status = status;
+    tx.payloadHash = payloadHash;
+    tx.failureCode = failureCode;
+    tx.failureReason = failureReason;
+    tx.createdAt = createdAt;
+    tx.processedAt = processedAt;
+    tx.expiresAt = expiresAt;
+
     return tx;
   }
 
+  // ---- transições (lançam InvalidTransactionStateError se o estado atual for terminal)
   markProcessed(): void {
     if (!this.isPending()) {
       throw new Error(
-        `Cannot mark as processed: transaction is ${this._status}`,
+        `Cannot mark as processed: transaction is ${this.status}`,
       );
     }
-    this._status = WagerTransactionStatus.PROCESSED;
-    this._processedAt = new Date();
+    this.status = WagerTransactionStatus.PROCESSED;
+    this.processedAt = new Date();
   }
 
   markPendingReference(): void {
-    if (this._status !== WagerTransactionStatus.PENDING) {
+    if (this.status !== WagerTransactionStatus.PENDING) {
       throw new Error(
-        `Cannot mark as pending reference: transaction is ${this._status}`,
+        `Cannot mark as pending reference: transaction is ${this.status}`,
       );
     }
-    this._status = WagerTransactionStatus.PENDING_REFERENCE;
+    this.status = WagerTransactionStatus.PENDING_REFERENCE;
   }
 
   reject(code: FailureCode, reason: string): void {
     if (this.isTerminal()) {
       throw new Error(
-        `Cannot reject: transaction is already terminal (${this._status})`,
+        `Cannot reject: transaction is already terminal (${this.status})`,
       );
     }
-    this._status = WagerTransactionStatus.REJECTED;
-    this._failureCode = code;
-    this._failureReason = reason;
-    this._processedAt = new Date();
+    this.status = WagerTransactionStatus.REJECTED;
+    this.failureCode = code;
+    this.failureReason = reason;
+    this.processedAt = new Date();
   }
 
   fail(code: FailureCode, reason: string): void {
     if (this.isTerminal()) {
       throw new Error(
-        `Cannot fail: transaction is already terminal (${this._status})`,
+        `Cannot fail: transaction is already terminal (${this.status})`,
       );
     }
-    this._status = WagerTransactionStatus.FAILED;
-    this._failureCode = code;
-    this._failureReason = reason;
-    this._processedAt = new Date();
+    this.status = WagerTransactionStatus.FAILED;
+    this.failureCode = code;
+    this.failureReason = reason;
+    this.processedAt = new Date();
   }
 
+  // ---- consultas de domínio
   affectsBalance(): boolean {
     return (
-      this._kind === WagerTransactionKind.BET ||
-      this._kind === WagerTransactionKind.WIN ||
-      this._kind === WagerTransactionKind.REFUND ||
-      this._kind === WagerTransactionKind.ROLLBACK ||
-      this._kind === WagerTransactionKind.OPENING
+      this.kind === WagerTransactionKind.BET ||
+      this.kind === WagerTransactionKind.WIN ||
+      this.kind === WagerTransactionKind.REFUND ||
+      this.kind === WagerTransactionKind.ROLLBACK ||
+      this.kind === WagerTransactionKind.OPENING
     );
   }
 
   requiresReference(): boolean {
     return (
-      this._kind === WagerTransactionKind.REFUND ||
-      this._kind === WagerTransactionKind.ROLLBACK
+      this.kind === WagerTransactionKind.REFUND ||
+      this.kind === WagerTransactionKind.ROLLBACK
     );
   }
 
@@ -270,7 +293,7 @@ export class WagerTransaction {
       return null;
     }
 
-    switch (this._kind) {
+    switch (this.kind) {
       case WagerTransactionKind.BET:
         return LedgerDirection.DEBIT;
       case WagerTransactionKind.WIN:
@@ -285,98 +308,30 @@ export class WagerTransaction {
   }
 
   getAmount(): Money {
-    return Money.fromString(this._amount, this._currency);
+    return Money.fromString(this.amount, this.currency);
   }
 
   isPending(): boolean {
     return (
-      this._status === WagerTransactionStatus.PENDING ||
-      this._status === WagerTransactionStatus.PENDING_REFERENCE
+      this.status === WagerTransactionStatus.PENDING ||
+      this.status === WagerTransactionStatus.PENDING_REFERENCE
     );
   }
 
   isTerminal(): boolean {
     return (
-      this._status === WagerTransactionStatus.PROCESSED ||
-      this._status === WagerTransactionStatus.REJECTED ||
-      this._status === WagerTransactionStatus.FAILED
+      this.status === WagerTransactionStatus.PROCESSED ||
+      this.status === WagerTransactionStatus.REJECTED ||
+      this.status === WagerTransactionStatus.FAILED
     );
   }
 
-  get id(): string {
-    return this._id;
-  }
-
-  get walletId(): string {
-    return this._walletId;
-  }
-
-  get providerId(): string {
-    return this._providerId;
-  }
-
-  get externalTransactionId(): string {
-    return this._externalTransactionId;
-  }
-
-  get idempotencyKey(): string {
-    return this._idempotencyKey;
-  }
-
-  get kind(): WagerTransactionKind {
-    return this._kind;
-  }
-
-  get currency(): string {
-    return this._currency;
-  }
-
-  get playerId(): string {
-    return this._playerId;
-  }
-
-  get roundId(): string {
-    return this._roundId;
-  }
-
-  get gameId(): string {
-    return this._gameId;
-  }
-
-  get referenceTransactionId(): string | null {
-    return this._referenceTransactionId;
-  }
-
-  get referenceExternalTransactionId(): string | null {
-    return this._referenceExternalTransactionId;
-  }
-
-  get status(): WagerTransactionStatus {
-    return this._status;
-  }
-
-  get payloadHash(): string | null {
-    return this._payloadHash;
-  }
-
   matchesPayload(payloadHash: string): boolean {
-    return this._payloadHash === payloadHash;
+    return this.payloadHash === payloadHash;
   }
 
-  get failureCode(): FailureCode | null {
-    return this._failureCode;
-  }
-
-  get failureReason(): string | null {
-    return this._failureReason;
-  }
-
-  get createdAt(): Date {
-    return this._createdAt;
-  }
-
-  get processedAt(): Date | null {
-    return this._processedAt;
+  isExpired(): boolean {
+    return this.expiresAt !== null && new Date() > this.expiresAt;
   }
 
   private static validateCreate(

@@ -147,7 +147,6 @@ describe('Concurrency Tests (e2e)', () => {
       const fulfilled = responses.filter(r => r.status === 'fulfilled') as PromiseFulfilledResult<any>[];
 
       const processed = fulfilled.filter(r => r.value.status === 200 && r.value.body.status === 'PROCESSED');
-      const rejected = fulfilled.filter(r => r.value.status === 400);
 
       // Should process as many as balance allows
       expect(processed.length).toBeGreaterThan(0);

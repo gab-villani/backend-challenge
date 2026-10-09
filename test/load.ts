@@ -19,7 +19,6 @@
  * - Outbox lag
  */
 
-import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 interface LoadTestConfig {
@@ -68,7 +67,6 @@ const CONFIG: LoadTestConfig = {
 };
 
 const results: TestResult[] = [];
-let activeUsers = 0;
 let startTime = 0;
 
 function sleep(ms: number): Promise<void> {
@@ -128,8 +126,6 @@ async function makeRequest(userId: number, walletId: string): Promise<TestResult
 }
 
 async function virtualUser(userId: number, walletId: string, stopSignal: () => boolean): Promise<void> {
-  activeUsers++;
-  
   while (!stopSignal()) {
     const result = await makeRequest(userId, walletId);
     results.push(result);
@@ -137,8 +133,6 @@ async function virtualUser(userId: number, walletId: string, stopSignal: () => b
     // Small delay between requests per user (simulate think time)
     await sleep(10 + Math.random() * 20);
   }
-  
-  activeUsers--;
 }
 
 async function runLoadTest(): Promise<void> {

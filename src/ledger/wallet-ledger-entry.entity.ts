@@ -47,22 +47,22 @@ export class WalletLedgerEntry {
     @Property({ fieldName: 'money_amount', type: 'decimal', precision: 18, scale: 2 })
     public readonly moneyAmount: string;
 
-    @Property({ fieldName: 'money_currency', length: 3 })
+    @Property({ fieldName: 'money_currency', length: 3, type: 'string' })
     public readonly moneyCurrency: string;
 
     @Property({ fieldName: 'balance_before_amount', type: 'decimal', precision: 18, scale: 2 })
     public readonly balanceBeforeAmount: string;
 
-    @Property({ fieldName: 'balance_before_currency', length: 3 })
+    @Property({ fieldName: 'balance_before_currency', length: 3, type: 'string' })
     public readonly balanceBeforeCurrency: string;
 
     @Property({ fieldName: 'balance_after_amount', type: 'decimal', precision: 18, scale: 2 })
     public readonly balanceAfterAmount: string;
 
-    @Property({ fieldName: 'balance_after_currency', length: 3 })
+    @Property({ fieldName: 'balance_after_currency', length: 3, type: 'string' })
     public readonly balanceAfterCurrency: string;
 
-    @Property({ fieldName: 'created_at', onCreate: () => new Date() })
+    @Property({ fieldName: 'created_at', onCreate: () => new Date(), type: 'datetime' })
     public readonly createdAt: Date;
 
     private constructor(props: {

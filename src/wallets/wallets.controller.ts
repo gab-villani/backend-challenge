@@ -26,7 +26,8 @@ export class WalletsController {
     const initialBalance = dto.initialBalance
       ? Money.fromString(dto.initialBalance.amount, dto.initialBalance.currency)
       : undefined;
-    const wallet = await this.walletsService.create(dto.playerId, dto.currency, initialBalance);
+    const currency = dto.initialBalance?.currency ?? 'BRL';
+    const wallet = await this.walletsService.create(dto.playerId, currency, initialBalance);
     return this.toResponse(wallet);
   }
 

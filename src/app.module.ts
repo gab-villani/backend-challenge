@@ -3,7 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
-import { SQSClient } from '@aws-sdk/client-sqs';
 import { Wallet } from './wallets/wallet.entity.js';
 import { WagerTransaction } from './transactions/wager-transaction.entity.js';
 import { WalletLedgerEntry } from './ledger/wallet-ledger-entry.entity.js';
@@ -12,6 +11,7 @@ import { OutboxMessage } from './messaging/outbox-message.entity.js';
 import { WalletsModule } from './wallets/wallets.module.js';
 import { WageringModule } from './wagering/wagering.module.js';
 import { MessagingModule } from './messaging/messaging.module.js';
+import { SqsModule } from './sqs/sqs.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -46,6 +46,7 @@ import { HealthController } from './health/health.controller.js';
     WalletsModule,
     WageringModule,
     MessagingModule,
+    SqsModule,
     ObservabilityModule,
     SchedulerModule,
     AuthModule,
@@ -53,20 +54,6 @@ import { HealthController } from './health/health.controller.js';
   controllers: [AppController, HealthController],
   providers: [
     AppService,
-    {
-      provide: 'SQS_CLIENT',
-      useFactory: (configService: ConfigService) => {
-        return new SQSClient({
-          region: configService.get<string>('AWS_REGION', 'us-east-1'),
-          endpoint: configService.get<string>('SQS_ENDPOINT', 'http://localhost:4566'),
-          credentials: {
-            accessKeyId: configService.get<string>('AWS_ACCESS_KEY_ID', 'test'),
-            secretAccessKey: configService.get<string>('AWS_SECRET_ACCESS_KEY', 'test'),
-          },
-        });
-      },
-      inject: [ConfigService],
-    },
   ],
 })
 export class AppModule {}

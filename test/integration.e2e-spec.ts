@@ -9,9 +9,6 @@ import { WagerTransaction } from '../src/transactions/wager-transaction.entity.j
 import { WalletLedgerEntry } from '../src/ledger/wallet-ledger-entry.entity.js';
 import { InboxMessage } from '../src/messaging/inbox-message.entity.js';
 import { OutboxMessage } from '../src/messaging/outbox-message.entity.js';
-import { Money } from '../src/domain/money.js';
-import { WagerTransactionKind, WagerTransactionStatus, LedgerDirection } from '../src/domain/enums.js';
-
 describe('Integration Tests (e2e)', () => {
   let app: INestApplication;
   let moduleFixture: TestingModule;

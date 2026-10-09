@@ -47,11 +47,6 @@ export class WageringService {
     private readonly em: EntityManager,
     private readonly logger: StructuredLoggerService,
     private readonly metrics: MetricsService,
-    private readonly walletRepo: EntityRepository<Wallet>,
-    private readonly transactionRepo: EntityRepository<WagerTransaction>,
-    private readonly ledgerRepo: EntityRepository<WalletLedgerEntry>,
-    private readonly inboxRepo: EntityRepository<InboxMessage>,
-    private readonly outboxRepo: EntityRepository<OutboxMessage>,
   ) {}
 
   private get walletRepository(): EntityRepository<Wallet> {
@@ -104,7 +99,8 @@ export class WageringService {
     const payloadHash = WageringService.computePayloadHash(input);
     const startTime = Date.now();
     
-    return this.em.transactional(async (em) => {
+    try {
+      return await this.em.transactional(async (em) => {
       const existingTx = await this.transactionRepository.findOne(
         { idempotencyKey: input.idempotencyKey },
         { lockMode: LockMode.PESSIMISTIC_WRITE },
@@ -164,9 +160,9 @@ export class WageringService {
 
         if (!referenceTransaction) {
           initialStatus = WagerTransactionStatus.PENDING_REFERENCE;
-        } else if (!this.isValidReference(referenceTransaction, input)) {
-          throw new Error('INVALID_REFERENCE');
-        }
+      } else {
+        this.validateReference(referenceTransaction, input);
+      }
       }
 
       const transaction = WagerTransaction.create(
@@ -190,13 +186,11 @@ export class WageringService {
 
       em.persist(transaction);
 
-      let processed = false;
       let newBalance = wallet.getBalance();
 
       if (initialStatus === WagerTransactionStatus.PENDING) {
         const result = await this.applyTransaction(em, wallet, transaction, referenceTransaction);
         newBalance = result.newBalance;
-        processed = true;
       }
 
       const correlationId = randomUUID();
@@ -207,12 +201,19 @@ export class WageringService {
       this.metrics.incrementTransactions(transaction.status, input.kind);
       this.metrics.setWalletBalance(wallet.id, wallet.currency, parseFloat(newBalance.amount));
 
-      return {
+return {
         transaction,
         balance: newBalance,
         idempotentReplay: false,
       };
     });
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('could not obtain lock') || error.message.includes('deadlock detected') || error.message.includes('lock timeout') || error.message.includes('LockNotAvailable') || error.message.includes('SerializationFailure'))) {
+        this.metrics.incrementLockConflicts();
+        this.logger.warn('Lock conflict detected', { error: error.message });
+      }
+      throw error;
+    }
   }
 
   private async applyTransaction(
@@ -280,33 +281,45 @@ export class WageringService {
     }
   }
 
-  private isValidReference(refTx: WagerTransaction, input: ProcessTransactionInput): boolean {
-    if (refTx.providerId !== input.providerId) return false;
-    if (refTx.playerId !== input.playerId) return false;
-    if (refTx.walletId !== input.walletId) return false;
-    if (refTx.currency !== input.money.currency) return false;
-    if (refTx.roundId !== input.roundId) return false;
-    if (!refTx.isTerminal()) return false;
-
-    if (input.kind === WagerTransactionKind.REFUND && refTx.kind !== WagerTransactionKind.BET) {
-      return false;
+  private validateReference(refTx: WagerTransaction, input: ProcessTransactionInput): void {
+    if (refTx.providerId !== input.providerId) {
+      throw new Error('REFERENCE_INCORRECT_PROVIDER');
     }
-
+    if (refTx.playerId !== input.playerId) {
+      throw new Error('REFERENCE_INCORRECT_PLAYER');
+    }
+    if (refTx.walletId !== input.walletId) {
+      throw new Error('REFERENCE_INCORRECT_WALLET');
+    }
+    if (refTx.currency !== input.money.currency) {
+      throw new Error('REFERENCE_INCORRECT_CURRENCY');
+    }
+    if (refTx.roundId !== input.roundId) {
+      throw new Error('REFERENCE_INCORRECT_ROUND');
+    }
+    if (!refTx.isTerminal()) {
+      throw new Error('REFERENCE_NOT_TERMINAL');
+    }
+    if (refTx.status === WagerTransactionStatus.REJECTED ||
+        refTx.status === WagerTransactionStatus.FAILED) {
+      throw new Error('REFERENCE_ALREADY_REVERSED');
+    }
+    if (input.kind === WagerTransactionKind.REFUND && refTx.kind !== WagerTransactionKind.BET) {
+      throw new Error('REFERENCE_INCORRECT_KIND');
+    }
     if (input.kind === WagerTransactionKind.ROLLBACK) {
       const allowedRefKinds = [
         WagerTransactionKind.BET,
         WagerTransactionKind.WIN,
         WagerTransactionKind.REFUND,
       ];
-      if (!allowedRefKinds.includes(refTx.kind)) return false;
+      if (!allowedRefKinds.includes(refTx.kind)) {
+        throw new Error('REFERENCE_INCORRECT_KIND');
+      }
     }
-
-    if (refTx.status === WagerTransactionStatus.REJECTED || 
-        refTx.status === WagerTransactionStatus.FAILED) {
-      return false;
+    if (!refTx.getAmount().equals(input.money)) {
+      throw new Error('REFERENCE_INCORRECT_AMOUNT');
     }
-
-    return true;
   }
 
   private async publishEvents(
@@ -393,7 +406,9 @@ export class WageringService {
   }
 
   async reprocessPendingReferences(): Promise<number> {
-    const pendingTxs = await this.transactionRepository.find(
+    const em = this.em.fork();
+
+    const pendingTxs = await em.getRepository(WagerTransaction).find(
       { status: WagerTransactionStatus.PENDING_REFERENCE },
       { limit: 100 },
     );
@@ -401,8 +416,8 @@ export class WageringService {
     let processed = 0;
     for (const tx of pendingTxs) {
       try {
-        await this.em.transactional(async (em) => {
-          const referenceTx = await this.transactionRepository.findOne({
+        await em.transactional(async (txEm) => {
+          const referenceTx = await txEm.getRepository(WagerTransaction).findOne({
             providerId: tx.providerId,
             externalTransactionId: tx.referenceExternalTransactionId!,
           });
@@ -411,7 +426,8 @@ export class WageringService {
             return;
           }
 
-          if (!this.isValidReference(referenceTx, {
+        try {
+          this.validateReference(referenceTx, {
             providerId: tx.providerId,
             externalTransactionId: tx.externalTransactionId,
             idempotencyKey: tx.idempotencyKey,
@@ -422,12 +438,16 @@ export class WageringService {
             kind: tx.kind,
             money: tx.getAmount(),
             referenceExternalTransactionId: tx.referenceExternalTransactionId ?? undefined,
-          })) {
-            tx.reject(FailureCode.REFERENCE_INCORRECT_AMOUNT, 'Reference validation failed');
-            return;
-          }
+          });
+        } catch (e) {
+          const code = Object.values(FailureCode).includes((e as Error).message as FailureCode)
+            ? (e as Error).message as FailureCode
+            : FailureCode.INTERNAL_ERROR;
+          tx.reject(code, 'Reference validation failed during reprocessing');
+          return;
+        }
 
-          const wallet = await this.walletRepository.findOne(
+          const wallet = await txEm.getRepository(Wallet).findOne(
             { id: tx.walletId },
             { lockMode: LockMode.PESSIMISTIC_WRITE },
           );
@@ -437,9 +457,9 @@ export class WageringService {
             return;
           }
 
-          const result = await this.applyTransaction(em, wallet, tx, referenceTx);
-const correlationId = randomUUID();
-          await this.publishEvents(em, wallet, tx, result.newBalance, correlationId);
+          const result = await this.applyTransaction(txEm, wallet, tx, referenceTx);
+          const correlationId = randomUUID();
+          await this.publishEvents(txEm, wallet, tx, result.newBalance, correlationId);
           processed++;
         });
       } catch (error) {
@@ -501,34 +521,39 @@ const correlationId = randomUUID();
     return this.transactionRepository.findOne({ providerId, externalTransactionId });
   }
 
-  private static encodeCursor(date: Date): string {
-    return Buffer.from(date.toISOString()).toString('base64');
+  private static encodeCursor(date: Date, id: string): string {
+    const payload = `${date.toISOString()}|${id}`;
+    return Buffer.from(payload).toString('base64');
   }
 
-  private static decodeCursor(cursor: string): Date | null {
+  private static decodeCursor(cursor: string): { date: Date | null; id: string | null } {
     try {
       const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
-      const date = new Date(decoded);
-      return isNaN(date.getTime()) ? null : date;
+      const [dateStr, id] = decoded.split('|');
+      const date = new Date(dateStr);
+      return { date: isNaN(date.getTime()) ? null : date, id: id ?? null };
     } catch {
-      return null;
+      return { date: null, id: null };
     }
   }
 
   async getWalletLedger(walletId: string, cursor?: string, limit = 50): Promise<{ entries: WalletLedgerEntry[]; nextCursor?: string }> {
-    const query: any = { wallet: walletId };
-    
+    const query: Record<string, unknown> = { wallet: walletId };
+
     if (cursor) {
-      const cursorDate = WageringService.decodeCursor(cursor);
+      const { date: cursorDate, id: cursorId } = WageringService.decodeCursor(cursor);
       if (cursorDate) {
-        query.createdAt = { $gt: cursorDate };
+        query.$or = [
+          { createdAt: { $gt: cursorDate } },
+          { createdAt: cursorDate, id: { $gt: cursorId } },
+        ];
       }
     }
 
     const entries = await this.ledgerRepository.find(
       query,
       {
-        orderBy: { createdAt: 'ASC' },
+        orderBy: { createdAt: 'ASC', id: 'ASC' },
         limit: limit + 1,
       },
     );
@@ -536,7 +561,7 @@ const correlationId = randomUUID();
     let nextCursor: string | undefined;
     if (entries.length > limit) {
       const nextEntry = entries[limit];
-      nextCursor = WageringService.encodeCursor(nextEntry.createdAt);
+      nextCursor = WageringService.encodeCursor(nextEntry.createdAt, nextEntry.id);
       entries.pop();
     }
 

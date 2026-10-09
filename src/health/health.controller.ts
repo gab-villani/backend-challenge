@@ -1,12 +1,12 @@
 import { Controller, Get, Inject } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/core';
+import { MikroORM } from '@mikro-orm/core';
 import { SQSClient, ReceiveMessageCommand } from '@aws-sdk/client-sqs';
 
 @Controller('health')
 export class HealthController {
   constructor(
-    private readonly em: EntityManager,
-    @Inject('SQS_CLIENT') private readonly sqsClient: SQSClient,
+    @Inject(MikroORM) private readonly orm: MikroORM,
+    private readonly sqsClient: SQSClient,
   ) {}
 
   @Get('live')
@@ -36,7 +36,8 @@ export class HealthController {
   }
 
   private async checkDatabase(): Promise<void> {
-    await this.em.getConnection().execute('SELECT 1');
+    const em = this.orm.em.fork();
+    await em.getConnection().execute('SELECT 1');
   }
 
   private async checkSqs(): Promise<void> {

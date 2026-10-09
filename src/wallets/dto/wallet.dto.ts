@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, Length, Matches, ValidateNested, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, Length, Matches, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class MoneyDto {
@@ -18,15 +18,9 @@ export class CreateWalletDto {
   @IsNotEmpty()
   playerId!: string;
 
-  @IsString()
-  @Length(3, 3)
-  @Matches(/^[A-Z]{3}$/, { message: 'Currency must be 3 uppercase letters (ISO 4217)' })
-  currency!: string;
-
-  @IsOptional()
   @ValidateNested()
   @Type(() => MoneyDto)
-  initialBalance?: MoneyDto;
+  initialBalance!: MoneyDto;
 }
 
 export class WalletResponseDto {

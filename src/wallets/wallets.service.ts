@@ -4,7 +4,7 @@ import { Wallet } from './wallet.entity.js';
 import { WagerTransaction } from '../transactions/wager-transaction.entity.js';
 import { WalletLedgerEntry } from '../ledger/wallet-ledger-entry.entity.js';
 import { Money } from '../domain/money.js';
-import { WagerTransactionKind, WagerTransactionStatus, LedgerDirection } from '../domain/enums.js';
+import { WagerTransactionKind, LedgerDirection } from '../domain/enums.js';
 import { randomUUID } from 'node:crypto';
 
 @Injectable()

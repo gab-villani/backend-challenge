@@ -85,12 +85,13 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
           }
         }, 100);
         
+        const shutdownTimeoutMs = Number.parseInt(process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS ?? '30000', 10);
         setTimeout(() => {
           clearInterval(checkInterval);
           this.logger.warn('Shutdown timeout, returning visibility for in-flight messages');
           this.returnInFlightMessages();
           this.shutdownResolve?.();
-        }, 30000);
+        }, shutdownTimeoutMs);
       });
     }
 
@@ -157,7 +158,8 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
 
   private async processMessage(message: SqsMessage): Promise<void> {
     this.inFlightMessages.add(message.receiptHandle);
-    
+    this.logger.setMessageId(message.messageId);
+
     try {
       let parsed: {
         messageId: string;
@@ -189,9 +191,13 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      this.logger.setCorrelationId(parsed.messageId);
+      this.logger.setWalletId(parsed.data.walletId);
+      this.logger.setProviderId(parsed.data.providerId);
+
       await this.em.transactional(async (em) => {
         const inboxRepo = em.getRepository(InboxMessage);
-        
+
         const existingInbox = await inboxRepo.findOne({
           consumerName: this.consumerName,
           messageId: parsed.messageId,
@@ -216,7 +222,7 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
         const money = Money.fromString(parsed.data.money.amount, parsed.data.money.currency);
 
         try {
-          await this.wageringService.processTransaction({
+          const transaction = await this.wageringService.processTransaction({
             providerId: parsed.data.providerId,
             externalTransactionId: parsed.data.externalTransactionId,
             idempotencyKey: parsed.data.idempotencyKey,
@@ -228,6 +234,10 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
             money,
             referenceExternalTransactionId: parsed.data.referenceExternalTransactionId,
           });
+
+          if (transaction) {
+            this.logger.setTransactionId(transaction.transaction.id);
+          }
 
           await em.getRepository(InboxMessage).nativeUpdate(
             { consumerName: this.consumerName, messageId: parsed.messageId },

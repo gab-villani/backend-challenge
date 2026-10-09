@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, Inject, Optional } from '@nestjs/common';
 import { PROVIDER_IDENTITY_PORT } from './provider-identity.port.js';
-import type { ProviderIdentityPort, ProviderIdentity } from './provider-identity.port.js';
+import type { ProviderIdentityPort } from './provider-identity.port.js';
 
 @Injectable()
 export class NoOpAuthGuard implements CanActivate {

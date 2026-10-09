@@ -13,6 +13,8 @@ import {
   NotFoundException,
   ConflictException,
   Res,
+  UnprocessableEntityException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { WageringService } from './wagering.service.js';
@@ -23,12 +25,16 @@ import {
   LedgerEntryResponseDto,
 } from './dto/wagering.dto.js';
 import { Money } from '../domain/money.js';
-import { WagerTransactionKind } from '../domain/enums.js';
 import { WalletLedgerEntry } from '../ledger/wallet-ledger-entry.entity.js';
+import { StructuredLoggerService } from '../observability/logger.service.js';
+import { WagerTransaction } from '../transactions/wager-transaction.entity.js';
 
 @Controller('wagering/transactions')
 export class WageringController {
-  constructor(private readonly wageringService: WageringService) {}
+  constructor(
+    private readonly wageringService: WageringService,
+    private readonly logger: StructuredLoggerService,
+  ) {}
 
   public static isValidIdempotencyKey(key: string): boolean {
     const parts = key.split(':');
@@ -89,7 +95,15 @@ export class WageringController {
 
       return response;
     } catch (error) {
+      this.logger.error('Transaction processing failed', error instanceof Error ? error.stack : String(error), {
+        idempotencyKey,
+        walletId: dto.walletId,
+        providerId: dto.providerId,
+        kind: dto.kind,
+      });
+
       if (error instanceof Error) {
+        // 422 Unprocessable Entity - Business rule violations / validation errors
         if (error.message === 'IDEMPOTENCY_CONFLICT: Same idempotency key with different payload') {
           throw new ConflictException('Idempotency key conflict: same key with different payload');
         }
@@ -97,24 +111,94 @@ export class WageringController {
           throw new NotFoundException('Wallet not found');
         }
         if (error.message === 'CURRENCY_MISMATCH') {
-          throw new BadRequestException('Currency mismatch between wallet and transaction');
+          throw new UnprocessableEntityException({
+            code: 'CURRENCY_MISMATCH',
+            message: 'Currency mismatch between wallet and transaction',
+          });
         }
         if (error.message === 'Insufficient balance for transaction') {
-          throw new BadRequestException({
+          throw new UnprocessableEntityException({
             code: 'INSUFFICIENT_BALANCE',
             message: 'Insufficient balance',
           });
         }
         if (error.message === 'INVALID_REFERENCE' || error.message === 'REFERENCE_REQUIRED') {
-          throw new BadRequestException({
+          throw new UnprocessableEntityException({
             code: 'INVALID_REFERENCE',
             message: 'Invalid or missing reference transaction',
           });
         }
+        if (error.message === 'REFERENCE_INCORRECT_AMOUNT') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_INCORRECT_AMOUNT',
+            message: 'Reference amount does not match transaction amount',
+          });
+        }
+        if (error.message === 'REFERENCE_INCORRECT_PLAYER') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_INCORRECT_PLAYER',
+            message: 'Reference player does not match',
+          });
+        }
+        if (error.message === 'REFERENCE_INCORRECT_WALLET') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_INCORRECT_WALLET',
+            message: 'Reference wallet does not match',
+          });
+        }
+        if (error.message === 'REFERENCE_INCORRECT_CURRENCY') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_INCORRECT_CURRENCY',
+            message: 'Reference currency does not match',
+          });
+        }
+        if (error.message === 'REFERENCE_INCORRECT_ROUND') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_INCORRECT_ROUND',
+            message: 'Reference round does not match',
+          });
+        }
+        if (error.message === 'REFERENCE_INCORRECT_PROVIDER') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_INCORRECT_PROVIDER',
+            message: 'Reference provider does not match',
+          });
+        }
+        if (error.message === 'REFERENCE_INCORRECT_KIND') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_INCORRECT_KIND',
+            message: 'Reference kind is not valid for this operation',
+          });
+        }
+        if (error.message === 'REFERENCE_NOT_TERMINAL') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_NOT_TERMINAL',
+            message: 'Reference transaction is not in a terminal state',
+          });
+        }
+        if (error.message === 'REFERENCE_ALREADY_REVERSED') {
+          throw new UnprocessableEntityException({
+            code: 'REFERENCE_ALREADY_REVERSED',
+            message: 'Reference transaction has already been reversed',
+          });
+        }
         if (error.message === 'CANNOT_ROLLBACK_LOSS') {
-          throw new BadRequestException({
+          throw new UnprocessableEntityException({
             code: 'CANNOT_ROLLBACK_LOSS',
             message: 'Cannot rollback a LOSS transaction',
+          });
+        }
+        // 503 Service Unavailable - Transient infrastructure failures
+        if (error.message.includes('could not obtain lock') || 
+            error.message.includes('deadlock detected') || 
+            error.message.includes('lock timeout') ||
+            error.message.includes('LockNotAvailable') ||
+            error.message.includes('SerializationFailure') ||
+            error.message.includes('ECONNREFUSED') ||
+            error.message.includes('timeout')) {
+          throw new ServiceUnavailableException({
+            code: 'TRANSIENT_ERROR',
+            message: 'Service temporarily unavailable, please retry',
           });
         }
       }
@@ -131,7 +215,7 @@ export class WageringController {
     return this.toTransactionResponse(transaction);
   }
 
-  private toTransactionResponse(transaction: any) {
+  private toTransactionResponse(transaction: WagerTransaction) {
     return {
       id: transaction.id,
       walletId: transaction.walletId,
@@ -173,7 +257,7 @@ export class ProviderTransactionController {
     return this.toTransactionResponse(transaction);
   }
 
-  private toTransactionResponse(transaction: any) {
+  private toTransactionResponse(transaction: WagerTransaction) {
     return {
       id: transaction.id,
       walletId: transaction.walletId,
